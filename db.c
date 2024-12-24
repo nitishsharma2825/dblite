@@ -4,6 +4,9 @@
 #include <string.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #define COLUMN_USERNAME_SIZE 32
 #define COLUMN_EMAIL_SIZE 255
@@ -11,6 +14,13 @@
 #define TABLE_MAX_PAGES 100
 
 #define size_of_attribute(Struct, Attribute) sizeof(((Struct*)0)->Attribute)
+
+typedef struct
+{
+    int file_descriptor;
+    uint32_t file_length;
+    void* pages[TABLE_MAX_PAGES];
+} Pager;
 
 typedef struct
 {
@@ -76,17 +86,65 @@ const uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 typedef struct 
 {
     uint32_t num_rows;
-    void* pages[TABLE_MAX_PAGES];
+    Pager* pager;
 } Table;
 
-Table* new_table()
+Pager* pager_open(const char* filename)
 {
-    Table* table = (Table*) malloc(sizeof(Table));
-    table->num_rows = 0;
+    int fd = open(filename,
+                    O_RDWR |        // Read/Write mode
+                        O_CREAT,    // Create file if it does not exist
+                    S_IWUSR |       // User write permission
+                        S_IRUSR     // User read permission
+                );
+    if (fd == -1)
+    {
+        printf("Unable to open file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    off_t file_length = lseek(fd, 0, SEEK_END);
+
+    Pager* pager = (Pager*) malloc(sizeof(Pager));
+    pager->file_descriptor = fd;
+    pager->file_length = file_length;
+
     for (uint32_t i = 0; i < TABLE_MAX_PAGES; i++)
     {
-        table->pages[i] = NULL;
+        pager->pages[i] = NULL;
     }
+    
+    return pager;
+}
+
+void* get_page(Pager* pager, uint32_t page_num)
+{
+    if (page_num > TABLE_MAX_PAGES)
+    {
+        printf("Tried to fetch page number out of bounds. %d > %d\n", page_num, TABLE_MAX_PAGES);
+        exit(EXIT_FAILURE);
+    }
+
+    if (pager->pages[page_num] == NULL)
+    {
+        // Cache miss. Allocate memory and load from file
+        void* page = malloc(PAGE_SIZE);
+        uint32_t num_pages = pager->file_length / PAGE_SIZE;
+        
+    }
+    
+    return pager->pages[page_num];
+}
+
+Table* db_open(const char* filename)
+{
+    Pager* pager = pager_open(filename);
+    uint32_t numrows = pager->file_length / ROW_SIZE;
+
+    Table *table = (Table*) malloc(sizeof(Table));
+    table->pager = pager;
+    table->num_rows = numrows;
+
     return table;
 }
 
@@ -102,13 +160,7 @@ void free_table(Table* table)
 void* row_slot(Table* table, uint32_t row_num)
 {
     uint32_t page_num = row_num / ROWS_PER_PAGE;
-    void* page = table->pages[page_num];
-
-    if (page == NULL)
-    {
-        // Allocate memory only when we try to access page
-        page = table->pages[page_num] = malloc(PAGE_SIZE);
-    }
+    void* page = get_page(table->pager, page_num);
 
     uint32_t row_offset = row_num % ROWS_PER_PAGE;
     uint32_t byte_offset = row_offset * ROW_SIZE;
