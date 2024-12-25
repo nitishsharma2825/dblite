@@ -1,2 +1,11 @@
 db: db.c
-		$(CC) db.c -o db -Wall -Wextra -pedantic
+		gcc db.c -o db
+
+run: db
+		./db mydb.db
+
+clean:
+		rm -f db *.db
+
+test: db
+		bundle exec rspec
