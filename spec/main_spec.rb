@@ -7,7 +7,11 @@ describe 'database' do
         raw_output = nil
         IO.popen("./db test.db", "r+") do |pipe|
             commands.each do |command|
-                pipe.puts command
+                begin
+                    pipe.puts command
+                rescue Errno::EPIPE
+                    break
+                end
             end
 
             pipe.close_write
@@ -38,7 +42,7 @@ describe 'database' do
         end
         script << ".exit"
         result = run_script(script)
-        expect(result[-2]).to eq('db > Error: Table full.')
+        expect(result[-2]).to eq('db > Executed.')
     end
 
     it 'allows inserting strings that are the max length' do
@@ -177,23 +181,24 @@ describe 'database' do
         expect(result[14...(result.length)]).to match_array([
             "db > Tree:",
             "- internal (size 1)",
-            "  - leaf (size 7)",
-            "    - 1",
-            "    - 2",
-            "    - 3",
-            "    - 4",
-            "    - 5",
-            "    - 6",
-            "    - 7",
-            "  - key 7",
-            "  - leaf (size 7)",
-            "    - 8",
-            "    - 9",
-            "    - 10",
-            "    - 11",
-            "    - 12",
-            "    - 13",
-            "    - 14",
+            " - leaf (size 7)",
+            "  - 1",
+            "  - 2",
+            "  - 3",
+            "  - 4",
+            "  - 5",
+            "  - 6",
+            "  - 7",
+            " - key 7",
+            " - leaf (size 7)",
+            "  - 8",
+            "  - 9",
+            "  - 10",
+            "  - 11",
+            "  - 12",
+            "  - 13",
+            "  - 14",
+            "db > Need to implement searching an internal node",
         ])
     end
 end

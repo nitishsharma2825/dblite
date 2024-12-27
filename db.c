@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <assert.h>
 
 #define COLUMN_USERNAME_SIZE 32
 #define COLUMN_EMAIL_SIZE 255
@@ -511,7 +512,7 @@ void leaf_node_split_and_insert(Cursor* cursor, uint32_t key, Row* value)
    evenly between old (left) and new (right) nodes.
    Starting from the right, move each key to correct position.
    */
-  for (uint32_t i = LEAF_NODE_MAX_CELLS; i>=0; i--)
+  for (int32_t i = LEAF_NODE_MAX_CELLS; i>=0; i--)
   {
     void* destination_node;
     if (i >= LEAF_NODE_LEFT_SPLIT_COUNT)
@@ -522,6 +523,7 @@ void leaf_node_split_and_insert(Cursor* cursor, uint32_t key, Row* value)
     }
     
     uint32_t index_within_node = i % LEAF_NODE_LEFT_SPLIT_COUNT;
+    assert (index_within_node >=0 && index_within_node < LEAF_NODE_LEFT_SPLIT_COUNT);
     void* destination = leaf_node_cell(destination_node, index_within_node);
 
     if (i == cursor->cell_num)
